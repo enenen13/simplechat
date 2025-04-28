@@ -142,13 +142,12 @@ def lambda_handler(event, context):
         }
 
 """
-
 import json
 import os
 import urllib.request
 
-# 環境変数から推論 API の URL を取得
-API_URL = os.environ.get("API_URL", "")  # 例: 環境変数から読み取る
+# 環境変数から推論 API の URL を取得（/generate付き）
+API_URL = os.environ.get("API_URL", "")  # 例: https://xxx.ngrok-free.app/generate
 
 def lambda_handler(event, context):
     try:
@@ -158,10 +157,14 @@ def lambda_handler(event, context):
         history = body.get("conversationHistory", [])
 
         # 2) 推論用 API へ POST リクエスト
+        # 今回は「historyは使わず、最新メッセージだけを送る」形にする
         payload = json.dumps({
-            "message": message,
-            "conversationHistory": history
-        }).encode("utf-8")  # 必要に応じて送るデータをここで調整
+            "prompt": message,
+            "max_new_tokens": 512,
+            "do_sample": True,
+            "temperature": 0.7,
+            "top_p": 0.9
+        }).encode("utf-8")
 
         req = urllib.request.Request(
             API_URL,
@@ -174,7 +177,7 @@ def lambda_handler(event, context):
             result = json.loads(resp.read())
 
         # 3) レスポンス解析
-        assistant_response = result.get("response", "")
+        assistant_response = result.get("generated_text", "")
 
         # 4) 会話履歴を更新
         new_history = history + [
@@ -213,4 +216,3 @@ def lambda_handler(event, context):
                 "error": str(error)
             })
         }
-
