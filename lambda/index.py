@@ -143,13 +143,13 @@ def lambda_handler(event, context):
 
 """
 
-
+# lambda/index.py
 import json
 import os
 import urllib.request
 
 # 環境変数から推論 API の URL を取得
-API_URL = os.environ.get("API_URL", "https://f3ee-35-247-98-88.ngrok-free.app/generate")
+API_URL = os.environ.get("API_URL", "https://d51c-34-148-77-72.ngrok-free.app/predict")
 
 def lambda_handler(event, context):
     try:
@@ -158,60 +158,45 @@ def lambda_handler(event, context):
         message = body.get("message", "")
         history = body.get("conversationHistory", [])
 
-        # 2) APIに渡す会話履歴を作成
-        messages = history.copy()
-        messages.append({
-            "role": "user",
-            "content": message
-        })
+        # 2) 今回のユーザーメッセージを履歴に追加
+        updated_history = history + [
+            {"role": "user", "content": message}
+        ]
 
-        # 3) API用リクエストペイロードを作成
+        # 3) 推論用 API に送るペイロード作成
         payload = {
-            "messages": [
-                {"role": msg["role"], "content": [{"text": msg["content"]}]}
-                for msg in messages
-            ],
-            "inferenceConfig": {
-                "maxTokens": 512,
-                "temperature": 0.7,
-                "topP": 0.9,
-                "stopSequences": []
-            }
+            "messages": updated_history  # 全履歴を送る
         }
+        payload_json = json.dumps(payload).encode("utf-8")
 
-        # 4) 推論APIへPOSTリクエスト送信
+        # 4) APIリクエスト
         req = urllib.request.Request(
             API_URL,
-            data=json.dumps(payload).encode("utf-8"),
-            headers={"Content-Type": "application/json", "accept": "application/json"},
+            data=payload_json,
+            headers={"Content-Type": "application/json"},
             method="POST"
         )
         with urllib.request.urlopen(req) as resp:
             result = json.loads(resp.read())
 
-        # 5) レスポンスからアシスタントの応答を取得
-        assistant_response = result.get("generated_text", "")
-        if not assistant_response:
-            raise Exception("Model did not return generated text.")
+        # 5) レスポンスからアシスタント応答を取得
+        assistant = result.get("response", "")
 
-        # 6) 会話履歴にアシスタントの応答を追加
-        new_history = history + [
-            {"role": "user", "content": message},
-            {"role": "assistant", "content": assistant_response}
+        # 6) 履歴にアシスタントの応答を追加
+        new_history = updated_history + [
+            {"role": "assistant", "content": assistant}
         ]
 
-        # 7) 成功レスポンスの返却
+        # 7) 成功レスポンスを返却
         return {
             "statusCode": 200,
             "headers": {
                 "Content-Type": "application/json",
-                "Access-Control-Allow-Origin": "*",
-                "Access-Control-Allow-Headers": "Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token",
-                "Access-Control-Allow-Methods": "OPTIONS,POST"
+                "Access-Control-Allow-Origin": "*"
             },
             "body": json.dumps({
                 "success": True,
-                "response": assistant_response,
+                "response": assistant,
                 "conversationHistory": new_history
             })
         }
@@ -222,9 +207,7 @@ def lambda_handler(event, context):
             "statusCode": 500,
             "headers": {
                 "Content-Type": "application/json",
-                "Access-Control-Allow-Origin": "*",
-                "Access-Control-Allow-Headers": "Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token",
-                "Access-Control-Allow-Methods": "OPTIONS,POST"
+                "Access-Control-Allow-Origin": "*"
             },
             "body": json.dumps({
                 "success": False,
