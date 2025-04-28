@@ -142,13 +142,13 @@ def lambda_handler(event, context):
         }
 
 """
-# lambda/index.py
+
 import json
 import os
 import urllib.request
 
 # 環境変数から推論 API の URL を取得
-API_URL = os.environ.get("https://d51c-34-148-77-72.ngrok-free.app/predict")
+API_URL = os.environ.get("API_URL", "")  # 例: 環境変数から読み取る
 
 def lambda_handler(event, context):
     try:
@@ -158,47 +158,59 @@ def lambda_handler(event, context):
         history = body.get("conversationHistory", [])
 
         # 2) 推論用 API へ POST リクエスト
-        payload = json.dumps({"message": message}).encode("utf-8")
+        payload = json.dumps({
+            "message": message,
+            "conversationHistory": history
+        }).encode("utf-8")  # 必要に応じて送るデータをここで調整
+
         req = urllib.request.Request(
             API_URL,
             data=payload,
             headers={"Content-Type": "application/json"},
             method="POST"
         )
+
         with urllib.request.urlopen(req) as resp:
             result = json.loads(resp.read())
 
-        # 3) レスポンス解析 & 会話履歴の更新
-        assistant = result.get("response", "")
+        # 3) レスポンス解析
+        assistant_response = result.get("response", "")
+
+        # 4) 会話履歴を更新
         new_history = history + [
             {"role": "user", "content": message},
-            {"role": "assistant", "content": assistant}
+            {"role": "assistant", "content": assistant_response}
         ]
 
-        # 4) 成功レスポンスの返却
+        # 5) 成功レスポンスの返却
         return {
             "statusCode": 200,
             "headers": {
                 "Content-Type": "application/json",
-                "Access-Control-Allow-Origin": "*"
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Headers": "Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token",
+                "Access-Control-Allow-Methods": "OPTIONS,POST"
             },
             "body": json.dumps({
                 "success": True,
-                "response": assistant,
+                "response": assistant_response,
                 "conversationHistory": new_history
             })
         }
 
-    except Exception as e:
-        # エラーハンドリング
+    except Exception as error:
+        print("Error:", str(error))
         return {
             "statusCode": 500,
             "headers": {
                 "Content-Type": "application/json",
-                "Access-Control-Allow-Origin": "*"
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Headers": "Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token",
+                "Access-Control-Allow-Methods": "OPTIONS,POST"
             },
             "body": json.dumps({
                 "success": False,
-                "error": str(e)
+                "error": str(error)
             })
         }
+
