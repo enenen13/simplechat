@@ -142,14 +142,13 @@ def lambda_handler(event, context):
         }
 
 """
-
 # lambda/index.py
 import json
 import os
 import urllib.request
 
 # 環境変数から推論 API の URL を取得
-API_URL = os.environ.get("API_URL", "https://d51c-34-148-77-72.ngrok-free.app/predict")
+API_URL = os.environ.get("https://d51c-34-148-77-72.ngrok-free.app/predict")
 
 def lambda_handler(event, context):
     try:
@@ -158,36 +157,25 @@ def lambda_handler(event, context):
         message = body.get("message", "")
         history = body.get("conversationHistory", [])
 
-        # 2) 今回のユーザーメッセージを履歴に追加
-        updated_history = history + [
-            {"role": "user", "content": message}
-        ]
-
-        # 3) 推論用 API に送るペイロード作成
-        payload = {
-            "messages": updated_history  # 全履歴を送る
-        }
-        payload_json = json.dumps(payload).encode("utf-8")
-
-        # 4) APIリクエスト
+        # 2) 推論用 API へ POST リクエスト
+        payload = json.dumps({"message": message}).encode("utf-8")
         req = urllib.request.Request(
             API_URL,
-            data=payload_json,
+            data=payload,
             headers={"Content-Type": "application/json"},
             method="POST"
         )
         with urllib.request.urlopen(req) as resp:
             result = json.loads(resp.read())
 
-        # 5) レスポンスからアシスタント応答を取得
+        # 3) レスポンス解析 & 会話履歴の更新
         assistant = result.get("response", "")
-
-        # 6) 履歴にアシスタントの応答を追加
-        new_history = updated_history + [
+        new_history = history + [
+            {"role": "user", "content": message},
             {"role": "assistant", "content": assistant}
         ]
 
-        # 7) 成功レスポンスを返却
+        # 4) 成功レスポンスの返却
         return {
             "statusCode": 200,
             "headers": {
